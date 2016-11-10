@@ -30,11 +30,30 @@ MODULE_LICENSE("Dual BSD/GPL");
 
 static struct usb_device_id camera_id[] = {
 {USB_DEVICE(0x046d, 0x08cc)}, //Vendor_id, Product_id
+{USB_DEVICE(0x046d, 0x0994)},
 {},
 };
 MODULE_DEVICE_TABLE(usb, camera_id);
 
+struct file_operations ele784_fops =
+{
+    .owner = THIS_MODULE,
+    .open = ele784_open,
+    .release = ele784_release,
+    .read = ele784_read,
+    .unlocked_ioctl = ele784_ioctl,
+};
 
+static struct usb_class_driver ele784_class = {
+	 .name = "usb/cameraEle784num%d",
+	 .fops = &ele784_fops,
+	 .minor_base = 0,
+};
+
+struct usb_ele784dev {
+	struct usb_device	*udev;			/* the usb device for this device */
+	struct usb_interface	*interface;		/* the interface for this device */
+};
 
 //----Function prototypes-----
 static int ele784_open (struct inode *inode, struct file *filp);
@@ -102,17 +121,31 @@ static int ele784_ioctl (struct file *filp, unsigned int cmd, unsigned long arg)
 	 return 0;
 }
 
-/* CLEANUP */
-static void ele784_cleanup(void){
+/* PROBE */
+static void ele784_probe(struct usb_interface *interface,const struct usb_device_id *devid){
+	const struct usb_host_interface *iface_desc;
+	const struct usb_endpoint_descriptor *endpoint;
+	struct usb_ele784dev *ele_784dev = NULL; //new private struct for each camera
 
-	// unregister_chrdev_region(…)
+	skeldev = kmalloc (sizeof(struct usb_ele784dev), GFP_KERNEL); //Allocation structure du device
+
+	ele_784dev->udev = usb_get_dev (interface_to_usbdev(interface));   //interface_to_usbdev : recupere la struc usb_device du pilote usb
+	ele_784dev->interface = 
+	// 
+}
+
+
+/* DISCONNECT */
+static void ele784_disconnect(void){
+
+	// 
 }
 
 
 static struct usb_driver cameraUsb_driver = {
 	.name =		"cameraUsbDriver",
-	//.probe =	ele784_probe,
-	.unlocked_ioctl = ele784_ioctl,
+	.probe =	ele784_probe,
+	.disconnect =	ele784_disconnect,
 	.id_table =	camera_id,
 };
 
