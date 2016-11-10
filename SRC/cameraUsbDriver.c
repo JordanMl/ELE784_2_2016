@@ -13,6 +13,10 @@
 #include <linux/device.h>
 #include <asm/atomic.h>
 #include <asm/uaccess.h>
+#include <linux/kref.h>
+#include <linux/uaccess.h>
+#include <linux/usb.h>
+#include <linux/mutex.h>
 
 ///Nouveaux includes :
 #include <linux/rwsem.h>  ///semaphore lecteur/ecrivain
@@ -25,7 +29,7 @@ MODULE_LICENSE("Dual BSD/GPL");
 
 
 static struct usb_device_id camera_id[] = {
-{USB_DEVICE(0x046d, 0x08cc)},
+{USB_DEVICE(0x046d, 0x08cc)}, //Vendor_id, Product_id
 {},
 };
 MODULE_DEVICE_TABLE(usb, camera_id);
@@ -38,26 +42,26 @@ static int ele784_release (struct inode *inode, struct file *filp);
 static ssize_t ele784_read (struct file *filp, char __user *ubuf, size_t count,
                   loff_t *f_ops);
 static int ele784_ioctl (struct file *filp, unsigned int cmd, unsigned long arg);
-
 static void ele784_cleanup(void);
 
 
 static struct usb_driver cameraUsb_driver;
 
-
+/* OPEN */
 static int ele784_open (struct inode *inode, struct file *filp){
 	
    printk(KERN_WARNING"ELE784 -> open \n\r");
 	return 0;
 }
 
-//Libération du pilote par l'usager
+/* RELEASE */
 static int ele784_release (struct inode *inode, struct file *filp) {
 
 	 printk(KERN_WARNING"ELE784 -> release \n\r");
 	 return 0;
 }
 
+/* READ */
 static ssize_t ele784_read (struct file *filp, char __user *ubuf, size_t count,
                   loff_t *f_ops){
 
@@ -65,7 +69,7 @@ static ssize_t ele784_read (struct file *filp, char __user *ubuf, size_t count,
    return 0;
 }
 
-
+/* IOCTL */
 static int ele784_ioctl (struct file *filp, unsigned int cmd, unsigned long arg){
 
 
@@ -98,6 +102,7 @@ static int ele784_ioctl (struct file *filp, unsigned int cmd, unsigned long arg)
 	 return 0;
 }
 
+/* CLEANUP */
 static void ele784_cleanup(void){
 
 	// unregister_chrdev_region(…)
@@ -106,11 +111,9 @@ static void ele784_cleanup(void){
 
 static struct usb_driver cameraUsb_driver = {
 	.name =		"cameraUsbDriver",
-	.probe =	ele784_probe,
+	//.probe =	ele784_probe,
 	.unlocked_ioctl = ele784_ioctl,
 	.id_table =	camera_id,
 };
 
 module_usb_driver(cameraUsb_driver);
-
-module_usb_driver(skel_driver);
