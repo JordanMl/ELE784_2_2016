@@ -20,7 +20,7 @@
 
 #include "cameraUsbDriver.h"
 
-#define USB_CHAR_CAMERA_0 "/dev/cameraEle784num0"
+#define USB_CHAR_CAMERA_0 "/dev/cameraEle784num1"
 
 
 void clrBuffer(void) {
@@ -43,7 +43,7 @@ int openDriverRead(char blocking){
     }
     else{ //Non Blocking
         printf("Device opening : %s| O_RDONLY|O_NONBLOCK \n",USB_CHAR_CAMERA_0);
-        devFd = open(USB_CHAR_CAMERA_0, O_RDONLY|O_NONBLOCK);
+        devFd = open(USB_CHAR_CAMERA_0, (O_RDONLY | O_NONBLOCK));
 
     }
 
@@ -284,8 +284,8 @@ int main(void) {
                     printf("------------IOCTL Commands--------\n");
                     printf("----------------------------------\n \n");
 
-                    blocking = 0; //NonBlocking
-                    devFd = openDriverReadWrite(blocking); //Open driver in Read/Write Mode
+                    blocking = 1; //NonBlocking
+                    devFd = openDriverRead(blocking); //Open driver in Read/Write Mode
 
                     if(devFd>0){
                         while(userChoice!='q'){
