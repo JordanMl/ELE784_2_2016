@@ -23,13 +23,14 @@
 #include <linux/sched.h> // Required for task states (TASK_INTERRUPTIBLE etc )
 #include <linux/ioctl.h> // Used for ioctl command
 
+#include "usbvideo.h"
 #include "cameraUsbDriver.h"
 
 MODULE_LICENSE("Dual BSD/GPL");
 
 //----Function prototypes-----
 static int ele784_open (struct inode *inode, struct file *filp);
-static int ele784_release (struct inode *inode, struct file *filp);
+//static int ele784_release (struct inode *inode, struct file *filp);
 static ssize_t ele784_read (struct file *filp, char __user *ubuf, size_t count,
                   loff_t *f_ops);
 long ele784_ioctl (struct file *filp, unsigned int cmd, unsigned long arg);
@@ -148,7 +149,7 @@ struct file_operations ele784_fops =
  * and to have the device registered with the driver core
  */
 static struct usb_class_driver ele784_class = {
-	 .name = "usb/cameraEle784num%d",
+	 .name = "cameraEle784num%d",
 	 .fops = &ele784_fops,
 	 .minor_base = 0,
 };
@@ -167,20 +168,28 @@ static int ele784_probe(struct usb_interface *interface,const struct usb_device_
 
 	iface_desc = interface->cur_altsetting; //Récupère les réglages courants
 
-	endpoint = &iface_desc->endpoint[0].desc;
-    printk(KERN_WARNING"ele784_probe (%s:%u)\n Récupération du endpoint %d", __FUNCTION__, __LINE__,iface_desc->desc.bNumEndpoints);
+    if(iface_desc->desc.bInterfaceClass == CC_VIDEO){
+        if(iface_desc->desc.bInterfaceSubClass == SC_VIDEOCONTROL){
+            endpoint = &iface_desc->endpoint[0].desc;
+            printk(KERN_WARNING"ele784_probe (%s:%u)\n Récupération du endpoint %d", __FUNCTION__, __LINE__,iface_desc->desc.bNumEndpoints);
+            buffer_size = usb_endpoint_maxp(endpoint);
+            dev->control_size = buffer_size;
+            dev->control_endpointAddr = endpoint->bEndpointAddress;
+            dev->control_buffer = kmalloc(buffer_size, GFP_KERNEL);
+            //Sauvergarde du pointeur vers la structure perso dans l'interface de ce device
+            usb_set_intfdata(interface, dev);
 
-    buffer_size = usb_endpoint_maxp(endpoint);
-    dev->control_size = buffer_size;
-    dev->control_endpointAddr = endpoint->bEndpointAddress;
-    dev->control_buffer = kmalloc(buffer_size, GFP_KERNEL);
-
-    //Sauvergarde du pointeur vers la structure perso dans l'interface de ce device
-	usb_set_intfdata(interface, dev);
-
-	//Enregistrement du device auprès de l'USB Core
-	printk(KERN_WARNING"ele784_probe (%s:%u)\n Device registered", __FUNCTION__, __LINE__);
-	usb_register_dev(interface, &ele784_class);
+            //Enregistrement du device auprès de l'USB Core
+            printk(KERN_WARNING"ele784_probe (%s:%u)\n Device registered", __FUNCTION__, __LINE__);
+            usb_register_dev(interface, &ele784_class);
+        }
+        else{
+            printk(KERN_WARNING"ele784_probe (%s:%u)\n Pas la bonne SubClass", __FUNCTION__, __LINE__);
+            return -ENOTTY;
+        }
+        printk(KERN_WARNING"ele784_probe (%s:%u)\n Pas la bonne Class", __FUNCTION__, __LINE__);
+        return -ENOTTY;
+    }
 
     return 0;
 
