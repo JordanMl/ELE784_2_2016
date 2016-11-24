@@ -27,6 +27,13 @@
 
 MODULE_LICENSE("Dual BSD/GPL");
 
+//----Function prototypes-----
+static int ele784_open (struct inode *inode, struct file *filp);
+static int ele784_release (struct inode *inode, struct file *filp);
+static ssize_t ele784_read (struct file *filp, char __user *ubuf, size_t count,
+                  loff_t *f_ops);
+long ele784_ioctl (struct file *filp, unsigned int cmd, unsigned long arg);
+static void ele784_cleanup(void);
 
 static struct usb_device_id camera_id[] = {
 {USB_DEVICE(0x046d, 0x08cc)}, //Vendor_id, Product_id
@@ -39,14 +46,10 @@ MODULE_DEVICE_TABLE(usb, camera_id); //usually used to support hot-plugging
 struct usb_cameraData {
 	struct usb_device	*udev;			/* the usb device for this device */
 	struct usb_interface	*interface;		/* the interface for this device */
+    unsigned char           *control_buffer;	/* the buffer to receive data */
+    size_t			control_size;		/* the size of the receive buffer */
+	__u8			control_endpointAddr;	/* the address of the bulk in endpoint */
 };
-
-//----Function prototypes-----
-static int ele784_open (struct inode *inode, struct file *filp);
-// static int ele784_release (struct inode *inode, struct file *filp);
-static ssize_t ele784_read (struct file *filp, char __user *ubuf, size_t count,
-                  loff_t *f_ops);
-long ele784_ioctl (struct file *filp, unsigned int cmd, unsigned long arg);
 
 
 static struct usb_driver cameraUsb_driver;
@@ -155,18 +158,28 @@ static int ele784_probe(struct usb_interface *interface,const struct usb_device_
 	const struct usb_host_interface *iface_desc;
 	const struct usb_endpoint_descriptor *endpoint;
 	struct usb_cameraData *dev = NULL; //new private struct for each camera
+	size_t buffer_size;
 
 	dev = kzalloc (sizeof(struct usb_cameraData), GFP_KERNEL); //Allocation structure du device
 
 	dev->udev = usb_get_dev (interface_to_usbdev(interface));   //interface_to_usbdev : recupere la struc usb_device du pilote usb
-	dev->interface = interface;
+    dev->interface = interface;
 
-    //On passe la partie ou l'on doit vérifier la disponibilité des Endpoints
+	iface_desc = interface->cur_altsetting; //Récupère les réglages courants
+
+	endpoint = &iface_desc->endpoint[0].desc;
+    printk(KERN_WARNING"ele784_probe (%s:%u)\n Récupération du endpoint %d", __FUNCTION__, __LINE__,iface_desc->desc.bNumEndpoints);
+
+    buffer_size = usb_endpoint_maxp(endpoint);
+    dev->control_size = buffer_size;
+    dev->control_endpointAddr = endpoint->bEndpointAddress;
+    dev->control_buffer = kmalloc(buffer_size, GFP_KERNEL);
 
     //Sauvergarde du pointeur vers la structure perso dans l'interface de ce device
 	usb_set_intfdata(interface, dev);
 
 	//Enregistrement du device auprès de l'USB Core
+	printk(KERN_WARNING"ele784_probe (%s:%u)\n Device registered", __FUNCTION__, __LINE__);
 	usb_register_dev(interface, &ele784_class);
 
     return 0;
