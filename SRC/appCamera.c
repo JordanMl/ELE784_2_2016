@@ -20,7 +20,7 @@
 
 #include "cameraUsbDriver.h"
 
-#define USB_CAMERA_1 "usb/cameraEle784num1"
+#define USB_CHAR_CAMERA_0 "/dev/cameraEle784num0"
 
 
 void clrBuffer(void) {
@@ -38,20 +38,20 @@ int openDriverRead(char blocking){
 
 	 int devFd =  0; //File descriptor for the char device
 	 if(blocking==1){ //Blocking
-		  printf("|Read Buffer : Blocking IO|_ Device opening...\n");
-        devFd = open("/dev/charDriverDev_node", O_RDONLY);
+		  printf("Camera Char Device opening : %s| O_RDONLY \n",USB_CHAR_CAMERA_0);
+          devFd = open(USB_CHAR_CAMERA_0, O_RDONLY);
     }
     else{ //Non Blocking
-        printf("|Read Buffer : NonBlocking IO|_ Device opening...\n");
-		  devFd = open("/dev/charDriverDev_node", O_RDONLY|O_NONBLOCK);
+        printf("Device opening : %s| O_RDONLY|O_NONBLOCK \n",USB_CHAR_CAMERA_0);
+        devFd = open(USB_CHAR_CAMERA_0, O_RDONLY|O_NONBLOCK);
 
     }
 
 	 if(devFd > 0){
-		 	printf("|Read Buffer : Device is open\n");
+		 	printf("Camera Char Device is open\n");
 	 }
 	 else{
-			printf("|Read Buffer : Error : Device is not open\n");
+			printf("O_RDONLY | Error : Camera Char Device is not open\n");
             printf(" Press a key to continue \n");
             getchar();
 	 }
@@ -64,19 +64,19 @@ int openDriverWrite(char blocking){
 
 	 int devFd =  0; //File descriptor for the char device
 	 if(blocking){ //Blocking
-			printf("|Write Buffer : Blocking IO|_ Device opening...\n");
-			devFd = open("/dev/charDriverDev_node", O_WRONLY);
+			printf("Camera Char Device opening : %s| O_WRONLY \n",USB_CHAR_CAMERA_0);
+			devFd = open(USB_CHAR_CAMERA_0, O_WRONLY);
     }
     else{   //NonBlocking
-        printf("|Write Buffer : NonBlocking IO|_ Device opening...\n");
-		  devFd = open("/dev/charDriverDev_node", O_WRONLY | O_NONBLOCK);
+        printf("Camera Char Device opening : %s| O_WRONLY | O_NONBLOCK \n",USB_CHAR_CAMERA_0);
+		  devFd = open(USB_CHAR_CAMERA_0, O_WRONLY | O_NONBLOCK);
     }
 
 	 if(devFd > 0){
-		 	printf("|Write Buffer : Device is open\n");
+		 	printf("Camera Char Device is open\n");
 	 }
 	 else{
-			printf("|Write Buffer : Error : Device is not open\n");
+			printf("O_WRONLY | Error : Camera Char Device is not open\n");
             printf(" Press a key to continue \n");
             getchar();
 	 }
@@ -88,19 +88,19 @@ int openDriverReadWrite(char blocking){
 
 	 int devFd =  0; //File descriptor for the char device
 	 if(blocking){ //Blocking
-			printf("|Read/Write Buffer : Blocking IO|_ Device opening...\n");
-			devFd = open("/dev/charDriverDev_node", O_RDWR);
+			printf("Camera Char Device opening : %s| O_RDWR \n",USB_CHAR_CAMERA_0);
+			devFd = open(USB_CHAR_CAMERA_0, O_RDWR);
     }
     else{   //NonBlocking
-        printf("|Read/Write Buffer : NonBlocking IO|_ Device opening...\n");
-		  devFd = open("/dev/charDriverDev_node", O_RDWR | O_NONBLOCK);
+            printf("Camera Char Device opening : %s| O_RDWR \n",USB_CHAR_CAMERA_0);
+		    devFd = open(USB_CHAR_CAMERA_0, O_RDWR | O_NONBLOCK);
     }
 
 	 if(devFd > 0){
-		 	printf("|Read/Write Buffer : Device is open\n");
+		 	printf("Camera Char Device is open\n");
 	 }
 	 else{
-			printf("|Read/Write Buffer : Error : Device is not open\n");
+			printf("O_RDWR | Error : Camera Char Device is not open\n");
             printf(" Press a key to continue \n");
             getchar();
 	 }
