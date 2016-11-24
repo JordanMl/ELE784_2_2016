@@ -99,6 +99,11 @@ long ele784_ioctl (struct file *filp, unsigned int cmd, unsigned long arg){
 
     struct usb_interface *intf = filp->private_data;
     struct usb_device *dev = usb_get_intfdata(intf);
+    const struct usb_host_interface *iface_desc;
+    char direction[4] = {0x00,0x00,0x00,0x00};
+    long retval = 0;
+
+    iface_desc = intf->cur_altsetting;
 
     switch(cmd){
         case IOCTL_GET : //Récupérer une valeur sur la caméra
@@ -121,8 +126,30 @@ long ele784_ioctl (struct file *filp, unsigned int cmd, unsigned long arg){
 				 printk(KERN_WARNING"ELE784 -> IOCTL_GRAB (0x50) \n\r");
 			    break;
 		  case IOCTL_PANTILT : // Modifier la position de l'objectif de la caméra
-
 				 printk(KERN_WARNING"ELE784 -> IOCTL_PANTILT (0x60) \n\r");
+				 switch (arg){
+                    case HAUT :     direction[0] = 0x00;
+                                    direction[1] = 0x00;
+                                    direction[2] = 0x80;
+                                    direction[3] = 0xFF;
+                                    break;
+                    case BAS :      direction[0] = 0x00;
+                                    direction[1] = 0x00;
+                                    direction[2] = 0x80;
+                                    direction[3] = 0x00;
+                                    break;
+                    case GAUCHE :   direction[0] = 0x80;
+                                    direction[1] = 0x00;
+                                    direction[2] = 0x00;
+                                    direction[3] = 0x00;
+                                    break;
+                    case DROITE :   direction[0] = 0x80;
+                                    direction[1] = 0xFF;
+                                    direction[2] = 0x00;
+                                    direction[3] = 0x00;
+                                    break;
+				 }
+			    retval = (long)usb_control_msg(dev,(iface_desc->desc.bNumEndpoints), 0x01, (USB_DIR_OUT | USB_TYPE_CLASS | USB_RECIP_INTERFACE),0x0100,0x0900,direction,4,0);
 			    break;
 		  case IOCTL_PANTILT_RESEST : // Reser de la position de l'objectif
 
@@ -132,7 +159,7 @@ long ele784_ioctl (struct file *filp, unsigned int cmd, unsigned long arg){
         default : return -ENOTTY;
     }
 
-	 return 0;
+	 return retval;
 }
 
 struct file_operations ele784_fops =
