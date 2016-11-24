@@ -1,7 +1,3 @@
-
-
-
-
 //IOCTL CMD
 
 #define IOCTL_GET 0x10
