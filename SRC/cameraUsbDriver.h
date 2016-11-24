@@ -7,3 +7,9 @@
 #define IOCTL_GRAB 0x50
 #define IOCTL_PANTILT 0x60
 #define IOCTL_PANTILT_RESEST 0x70
+
+//Direction camera
+#define HAUT 1
+#define BAS 2
+#define GAUCHE 3
+#define DROITE 4
