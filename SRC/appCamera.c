@@ -285,7 +285,7 @@ int main(void) {
                     printf("----------------------------------\n \n");
 
                     blocking = 0; //NonBlocking
-                    devFd = openDriverWrite(blocking); //Open driver in Blocking Write Mode
+                    devFd = openDriverReadWrite(blocking); //Open driver in Read/Write Mode
 
                     if(devFd>0){
                         while(userChoice!='q'){
@@ -330,9 +330,34 @@ int main(void) {
 
                             case '6' :
                                 printf("-------IOCTL_PANTILT--------\n");
-                                printf("--------NO FUNCTION YET----------- \n-> ");
-                                //ioctlFunction(devFd, IOCTL_PANTILT, ARG )
+                                printf("---Rotation de la camera--- \n-> ");
 
+                                while(userChoice!='q'){
+                                    printf("1) Haut 2) Bas 3) Gauche 4) Droite \n");
+                                    scanf("%c", &userChoice);
+                                    clrBuffer();
+                                    switch (userChoice){
+                                        case HAUT :
+                                            printf("---Mouvement : Haut----\n");
+                                            ioctlFunction(devFd, IOCTL_PANTILT, HAUT);
+                                            break;
+                                        case BAS :
+                                            printf("---Mouvement : Haut----\n");
+                                            ioctlFunction(devFd, IOCTL_PANTILT, BAS);
+                                            break;
+                                        case GAUCHE :
+                                            printf("---Mouvement : Haut----\n");
+                                            ioctlFunction(devFd, IOCTL_PANTILT, GAUCHE);
+                                            break;
+                                        case DROITE :
+                                            printf("---Mouvement : Haut----\n");
+                                            ioctlFunction(devFd, IOCTL_PANTILT, DROITE);
+                                            break;
+                                        default :
+                                            printf("---Pas de direction selectionnee----\n");
+                                            break;
+                                    }
+                                }
                                 break;
 
                             case '7' :
