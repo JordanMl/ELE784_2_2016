@@ -72,6 +72,7 @@ static int ele784_open (struct inode *inode, struct file *filp){
         return -ENODEV;
     }
 
+    printk(KERN_WARNING "ELE784 -> Open terminé");
     filp->private_data = intf;
     return 0;
 
@@ -98,7 +99,8 @@ long ele784_ioctl (struct file *filp, unsigned int cmd, unsigned long arg){
 
 
     struct usb_interface *intf = filp->private_data;
-    struct usb_device *dev = usb_get_intfdata(intf);
+    struct usb_cameraData *devData = usb_get_intfdata(intf);
+    struct usb_device *dev = devData->udev;
     const struct usb_host_interface *iface_desc;
     char direction[4] = {0x00,0x00,0x00,0x00};
     long retval = 0;
@@ -126,7 +128,7 @@ long ele784_ioctl (struct file *filp, unsigned int cmd, unsigned long arg){
 				 printk(KERN_WARNING"ELE784 -> IOCTL_GRAB (0x50) \n\r");
 			    break;
 		  case IOCTL_PANTILT : // Modifier la position de l'objectif de la caméra
-				 printk(KERN_WARNING"ELE784 -> IOCTL_PANTILT (0x60) \n\r");
+				 printk(KERN_WARNING"ELE784 -> IOCTL_PANTILT (0x60) arg = %d \n\r",(unsigned int)arg);
 				 switch (arg){
                     case HAUT :     direction[0] = 0x00;
                                     direction[1] = 0x00;
@@ -149,7 +151,7 @@ long ele784_ioctl (struct file *filp, unsigned int cmd, unsigned long arg){
                                     direction[3] = 0x00;
                                     break;                      //usb_sndctrlpipe(struct usb_device *dev, unsigned int endpoint)
 				 }
-			    retval = (long)usb_control_msg(dev,usb_sndctrlpipe(dev, dev->ep0.desc.bEndpointAddress), 0x01, (USB_DIR_OUT | USB_TYPE_CLASS | USB_RECIP_INTERFACE),0x0100,0x0900,&direction,4,0);
+			    retval = (long)usb_control_msg(dev,usb_sndctrlpipe(dev, 0x00), 0x01, (USB_DIR_OUT | USB_TYPE_CLASS | USB_RECIP_INTERFACE),0x0100,0x0900,&direction,4,0);
 
 			    printk(KERN_WARNING"ELE784 -> IOCTL_PANTILT, Mouvement, arg = %d retval = %d  \n\r",arg,retval);
 			    break;
@@ -200,7 +202,7 @@ static int ele784_probe(struct usb_interface *interface,const struct usb_device_
     if(iface_desc->desc.bInterfaceClass == CC_VIDEO){
         if(iface_desc->desc.bInterfaceSubClass == SC_VIDEOCONTROL){
             endpoint = &iface_desc->endpoint[0].desc;
-            printk(KERN_WARNING"ele784_probe (%s:%u)\n Récupération du endpoint %d", __FUNCTION__, __LINE__,iface_desc->desc.bNumEndpoints);
+            printk(KERN_WARNING"ele784_probe (%s:%u)\n Récupération du endpoint, numero du endpoint = %d", __FUNCTION__, __LINE__,iface_desc->desc.bNumEndpoints);
             buffer_size = usb_endpoint_maxp(endpoint);
             dev->control_size = buffer_size;
             dev->control_endpointAddr = endpoint->bEndpointAddress;
@@ -236,6 +238,8 @@ static void ele784_disconnect(struct usb_interface *interface){
 
     //Signifie au USB Core que le device retiré n'est plus associé à l'usb driver
 	usb_deregister_dev(interface, &ele784_class);
+	printk(KERN_WARNING"ele784_probe (%s:%u)\n Pas la bonne Class", __FUNCTION__, __LINE__);
+
 }
 
 
