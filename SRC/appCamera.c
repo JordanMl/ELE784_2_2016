@@ -20,7 +20,7 @@
 
 #include "cameraUsbDriver.h"
 
-#define USB_CHAR_CAMERA_0 "/dev/cameraEle784num1"
+#define USB_CHAR_CAMERA_0 "/dev/cameraEle784num2"
 
 
 void clrBuffer(void) {
@@ -47,11 +47,11 @@ int openDriverRead(char blocking){
 
     }
 
-	 if(devFd > 0){
+	 if(devFd >= 0){
 		 	printf("Camera Char Device is open\n");
 	 }
 	 else{
-			printf("O_RDONLY | Error : Camera Char Device is not open\n");
+			printf("O_RDONLY | Error : Camera Char Device is not open : error code = %d  \n",devFd);
             printf(" Press a key to continue \n");
             getchar();
 	 }
@@ -72,7 +72,7 @@ int openDriverWrite(char blocking){
 		  devFd = open(USB_CHAR_CAMERA_0, O_WRONLY | O_NONBLOCK);
     }
 
-	 if(devFd > 0){
+	 if(devFd >= 0){
 		 	printf("Camera Char Device is open\n");
 	 }
 	 else{
@@ -96,7 +96,7 @@ int openDriverReadWrite(char blocking){
 		    devFd = open(USB_CHAR_CAMERA_0, O_RDWR | O_NONBLOCK);
     }
 
-	 if(devFd > 0){
+	 if(devFd >= 0){
 		 	printf("Camera Char Device is open\n");
 	 }
 	 else{
@@ -337,19 +337,19 @@ int main(void) {
                                     scanf("%c", &userChoice);
                                     clrBuffer();
                                     switch (userChoice){
-                                        case HAUT :
+                                        case '1' :
                                             printf("---Mouvement : Haut----\n");
                                             ioctlFunction(devFd, IOCTL_PANTILT, HAUT);
                                             break;
-                                        case BAS :
+                                        case '2' :
                                             printf("---Mouvement : Haut----\n");
                                             ioctlFunction(devFd, IOCTL_PANTILT, BAS);
                                             break;
-                                        case GAUCHE :
+                                        case '3' :
                                             printf("---Mouvement : Haut----\n");
                                             ioctlFunction(devFd, IOCTL_PANTILT, GAUCHE);
                                             break;
-                                        case DROITE :
+                                        case '4' :
                                             printf("---Mouvement : Haut----\n");
                                             ioctlFunction(devFd, IOCTL_PANTILT, DROITE);
                                             break;

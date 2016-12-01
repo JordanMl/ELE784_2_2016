@@ -212,10 +212,11 @@ static int ele784_probe(struct usb_interface *interface,const struct usb_device_
         }
         else{
             printk(KERN_WARNING"ele784_probe (%s:%u)\n Pas la bonne SubClass", __FUNCTION__, __LINE__);
-            return -ENOTTY;
         }
+
+    }
+    else{
         printk(KERN_WARNING"ele784_probe (%s:%u)\n Pas la bonne Class", __FUNCTION__, __LINE__);
-        return -ENOTTY;
     }
 
     return 0;
