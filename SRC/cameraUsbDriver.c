@@ -147,9 +147,11 @@ long ele784_ioctl (struct file *filp, unsigned int cmd, unsigned long arg){
                                     direction[1] = 0xFF;
                                     direction[2] = 0x00;
                                     direction[3] = 0x00;
-                                    break;
+                                    break;                      //usb_sndctrlpipe(struct usb_device *dev, unsigned int endpoint)
 				 }
-			    retval = (long)usb_control_msg(dev,(iface_desc->desc.bNumEndpoints), 0x01, (USB_DIR_OUT | USB_TYPE_CLASS | USB_RECIP_INTERFACE),0x0100,0x0900,direction,4,0);
+			    retval = (long)usb_control_msg(dev,usb_sndctrlpipe(dev, dev->ep0.desc.bEndpointAddress), 0x01, (USB_DIR_OUT | USB_TYPE_CLASS | USB_RECIP_INTERFACE),0x0100,0x0900,&direction,4,0);
+
+			    printk(KERN_WARNING"ELE784 -> IOCTL_PANTILT, Mouvement, arg = %d retval = %d  \n\r",arg,retval);
 			    break;
 		  case IOCTL_PANTILT_RESEST : // Reser de la position de l'objectif
 
