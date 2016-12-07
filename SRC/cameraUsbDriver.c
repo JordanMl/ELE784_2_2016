@@ -98,9 +98,40 @@ static int ele784_release (struct inode *inode, struct file *filp) {
 /* READ */
 static ssize_t ele784_read (struct file *filp, char __user *ubuf, size_t count,
                   loff_t *f_ops){
+    struct usb_cameraData *camData;
+    struct usb_interface *intf;
+    int i;
 
-	printk(KERN_WARNING"ELE784 -> read \n\r");
-   return 0;
+    intf = filp->private_data;
+
+    camData = usb_get_intfdata(intf);
+
+    wait_for_completion(camData->done);
+
+    count = copy_to_user(ubuf, myData, myLengthUsed);
+
+    if(count < 0){
+        count = -EFAULT;
+    }
+
+    for (i = 0; i < 5; i++){
+        usb_kill_urb(camData->myUrb[i]);
+
+        //desalocation du buffer de transfert
+        usb_free_coherent(camData->udev, camData->myUrb[i]->transfer_buffer_length, camData->myUrb[i]->transfer_buffer,
+                            camData->myUrb[i]->transfer_dma);
+
+        camData->myUrb[i]->transfer_buffer_length = 0;
+        camData->myUrb[i]->transfer_flags = URB_FREE_BUFFER;
+
+        usb_free_urb(camData->myUrb[i]);
+
+        camData->myUrb[i] = NULL;
+    }
+
+	printk(KERN_WARNING"ELE784 -> read done \n\r");
+
+   return count;
 }
 
 /* IOCTL */
@@ -201,6 +232,7 @@ static int ele784_probe(struct usb_interface *interface,const struct usb_device_
 	const struct usb_endpoint_descriptor *endpoint;
 	struct usb_cameraData *dev = NULL; //new private struct for each camera
 	size_t buffer_size;
+	int i;
 
 	dev = kzalloc (sizeof(struct usb_cameraData), GFP_KERNEL); //Allocation structure du device
 
@@ -210,19 +242,30 @@ static int ele784_probe(struct usb_interface *interface,const struct usb_device_
 	iface_desc = interface->cur_altsetting; //Récupère les réglages courants
 
     if(iface_desc->desc.bInterfaceClass == CC_VIDEO){
-        if(iface_desc->desc.bInterfaceSubClass == SC_VIDEOCONTROL){
+        if(iface_desc->desc.bInterfaceSubClass == SC_VIDEOCONTROL){ //SC_VIDEOSTREAMING
             endpoint = &iface_desc->endpoint[0].desc;
             printk(KERN_WARNING"ele784_probe (%s:%u)\n Récupération du endpoint, numero du endpoint = %d", __FUNCTION__, __LINE__,iface_desc->desc.bNumEndpoints);
             buffer_size = usb_endpoint_maxp(endpoint);
             dev->control_size = buffer_size;
             dev->control_endpointAddr = endpoint->bEndpointAddress;
             dev->control_buffer = kmalloc(buffer_size, GFP_KERNEL);
+
+            for(i = 0; i < 5; i++){
+                dev->myUrb[i] = NULL;
+            }
+
+            dev->open_count = 0;
+            dev->done = (struct completion *) kmalloc(sizeof(struct completion), GFP_KERNEL);
+            init_completion(dev->done);
+
             //Sauvergarde du pointeur vers la structure perso dans l'interface de ce device
             usb_set_intfdata(interface, dev);
 
             //Enregistrement du device auprès de l'USB Core
             printk(KERN_WARNING"ele784_probe (%s:%u)\n Device registered", __FUNCTION__, __LINE__);
             usb_register_dev(interface, &ele784_class);
+
+            usb_set_interface(dev->udev, 1, 4);
         }
         else{
             printk(KERN_WARNING"ele784_probe (%s:%u)\n Pas la bonne SubClass", __FUNCTION__, __LINE__);
