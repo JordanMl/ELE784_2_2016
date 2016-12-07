@@ -35,6 +35,7 @@ static ssize_t ele784_read (struct file *filp, char __user *ubuf, size_t count,
                   loff_t *f_ops);
 long ele784_ioctl (struct file *filp, unsigned int cmd, unsigned long arg);
 static void ele784_cleanup(void);
+static void complete_callback(struct urb *urb);
 
 static struct usb_device_id camera_id[] = {
 {USB_DEVICE(0x046d, 0x08cc)}, //Vendor_id, Product_id
@@ -50,8 +51,16 @@ struct usb_cameraData {
     unsigned char           *control_buffer;	/* the buffer to receive data */
     size_t			control_size;		/* the size of the receive buffer */
 	__u8			control_endpointAddr;	/* the address of the bulk in endpoint */
+	struct completion *done;
+    int open_count;
+	struct urb *myUrb[5];
 };
 
+
+unsigned int myStatus = 0;
+unsigned int myLength = 42666;
+unsigned int myLengthUsed = 0;
+char myData[42666];
 
 static struct usb_driver cameraUsb_driver;
 
@@ -104,24 +113,18 @@ long ele784_ioctl (struct file *filp, unsigned int cmd, unsigned long arg){
     const struct usb_host_interface *iface_desc;
     char direction[4] = {0x00,0x00,0x00,0x00};
     long retval = 0;
+    char reset = 0x03;
 
     iface_desc = intf->cur_altsetting;
 
     switch(cmd){
-        case IOCTL_GET : //Récupérer une valeur sur la caméra
 
-				 printk(KERN_WARNING"ELE784 -> IOCTL_GET (0x10) \n\r");
-             break;
-        case IOCTL_SET : //Affecter une valeur sur la caméra
-
-				 printk(KERN_WARNING"ELE784 -> IOCTL_SET (0x20) \n\r");
-				 break;
         case IOCTL_STREAMON : // Démarrer l'acquisition d'une image
-
+                retval = (long)usb_control_msg(dev,usb_sndctrlpipe(dev, 0x00), 0x0B, (USB_DIR_OUT | USB_TYPE_STANDARD | USB_RECIP_INTERFACE),0x0004,0x0001,NULL,0,0);
 				 printk(KERN_WARNING"ELE784 -> IOCTL_STREAMON (0x30) \n\r");
              break;
         case IOCTL_STREAMOFF : // Arrêter l'acquisition d'une image
-
+                retval = (long)usb_control_msg(dev,usb_sndctrlpipe(dev, 0x00), 0x0B, (USB_DIR_OUT | USB_TYPE_STANDARD | USB_RECIP_INTERFACE),0x0000,0x0001,NULL,0,0);
 				 printk(KERN_WARNING"ELE784 -> IOCTL_STREAMOFF (0x40) \n\r");
 			    break;
 		  case IOCTL_GRAB :
@@ -155,11 +158,18 @@ long ele784_ioctl (struct file *filp, unsigned int cmd, unsigned long arg){
 
 			    printk(KERN_WARNING"ELE784 -> IOCTL_PANTILT, Mouvement, arg = %d retval = %d  \n\r",arg,retval);
 			    break;
-		  case IOCTL_PANTILT_RESEST : // Reser de la position de l'objectif
-
+		  case IOCTL_PANTILT_RESEST : // Reset de la position de l'objectif
+                retval = (long)usb_control_msg(dev,usb_sndctrlpipe(dev, 0x00), 0x01, (USB_DIR_OUT | USB_TYPE_CLASS | USB_RECIP_INTERFACE),0x0200,0x0900,&reset,1,0);
 				 printk(KERN_WARNING"ELE784 -> IOCTL_RESEST (0x70) \n\r");
 			    break;
+          /*case IOCTL_GET : //Récupérer une valeur sur la caméra
 
+				 printk(KERN_WARNING"ELE784 -> IOCTL_GET (0x10) \n\r");
+                break;
+          case IOCTL_SET : //Affecter une valeur sur la caméra
+
+				 printk(KERN_WARNING"ELE784 -> IOCTL_SET (0x20) \n\r");
+				 break;*/
         default : return -ENOTTY;
     }
 
@@ -242,6 +252,145 @@ static void ele784_disconnect(struct usb_interface *interface){
 
 }
 
+
+/* GRAB*/
+long ele784_grab(struct usb_interface *intf, struct usb_device *dev) {
+  int nbPackets;
+  int myPacketSize;
+  int size;
+  int nbUrbs;
+  int i;
+  int ret;
+  int j;
+
+  struct usb_endpoint_descriptor *endpointDesc;
+  struct usb_cameraData *camData = usb_get_intfdata(intf);
+
+  endpointDesc = &intf->cur_altsetting->endpoint[0].desc;
+
+  nbPackets = 40;  // The number of isochronous packets this urb should contain
+  myPacketSize = le16_to_cpu(endpointDesc->wMaxPacketSize);
+  size = myPacketSize * nbPackets;
+  nbUrbs = 5;
+
+  for (i = 0; i < nbUrbs; ++i) {
+    usb_free_urb(camData->myUrb[i]); // Pour être certain
+    camData->myUrb[i] = usb_alloc_urb(nbPackets, GFP_KERNEL);
+    if (camData->myUrb[i] == NULL) {
+      printk(KERN_WARNING "URB[%d] : NULL",i);
+      return -ENOMEM;
+    }
+
+    camData->myUrb[i]->transfer_buffer = usb_alloc_coherent(dev, size, GFP_KERNEL, &camData->myUrb[i]->transfer_dma);
+
+    if (camData->myUrb[i]->transfer_buffer == NULL) {
+      //printk(KERN_WARNING "");
+      usb_free_urb(camData->myUrb[i]);
+      return -ENOMEM;
+    }
+
+    camData->myUrb[i]->dev = dev;
+    camData->myUrb[i]->context = camData;
+    camData->myUrb[i]->pipe = usb_rcvisocpipe(dev, endpointDesc->bEndpointAddress);
+    camData->myUrb[i]->transfer_flags = URB_ISO_ASAP | URB_NO_TRANSFER_DMA_MAP;
+    camData->myUrb[i]->interval = endpointDesc->bInterval;
+    camData->myUrb[i]->complete = complete_callback;
+    camData->myUrb[i]->number_of_packets = nbPackets;
+    camData->myUrb[i]->transfer_buffer_length = size;
+
+    for (j = 0; j < nbPackets; ++j) {
+      camData->myUrb[i]->iso_frame_desc[j].offset = j * myPacketSize;
+      camData->myUrb[i]->iso_frame_desc[j].length = myPacketSize;
+    }
+  }
+
+  for(i = 0; i < nbUrbs; i++){
+    if ((ret = usb_submit_urb(camData->myUrb[i], GFP_KERNEL)) < 0) {
+      //printk(KERN_WARNING "");
+      return ret;
+    }
+  }
+
+  return 0;
+
+
+}
+
+/*************************************************************************
+ * Source: le pilote uvcvideo (voir le répertoire /home/ELE784/uvc
+ *         pour les fichiers sources)
+ ************************************************************************/
+
+static void complete_callback(struct urb *urb){
+
+	int ret;
+	int i;
+	unsigned char * data;
+	unsigned int len;
+	unsigned int maxlen;
+	unsigned int nbytes;
+	void * mem;
+
+    struct usb_cameraData *camData = urb->context;
+
+    printk("CameraUsbDriver - CALLBACK - Start\n");
+
+	if(urb->status == 0){
+
+		for (i = 0; i < urb->number_of_packets; ++i) {
+			if(myStatus == 1){
+				continue;
+			}
+			if (urb->iso_frame_desc[i].status < 0) {
+				continue;
+			}
+
+			data = urb->transfer_buffer + urb->iso_frame_desc[i].offset;
+			if(data[1] & (1 << 6)){
+				continue;
+			}
+			len = urb->iso_frame_desc[i].actual_length;
+			if (len < 2 || data[0] < 2 || data[0] > len){
+				continue;
+			}
+
+			len -= data[0];
+			maxlen = myLength - myLengthUsed ;
+			mem = myData + myLengthUsed;
+			nbytes = min(len, maxlen);
+			memcpy(mem, data + data[0], nbytes);
+			myLengthUsed += nbytes;
+
+			if (len > maxlen) {
+				myStatus = 1; // DONE
+			}
+
+			/* Mark the buffer as done if the EOF marker is set. */
+			if ((data[1] & (1 << 1)) && (myLengthUsed != 0)) {
+				myStatus = 1; // DONE
+			}
+		}
+
+		if (!(myStatus == 1)){
+			if ((ret = usb_submit_urb(urb, GFP_ATOMIC)) < 0) {
+				printk(KERN_WARNING "Erreur dans submit URB code %d\n",ret);
+			}
+			printk("RESUBMIT URB\n");
+		}else{
+			///////////////////////////////////////////////////////////////////////
+			//  Synchronisation
+			///////////////////////////////////////////////////////////////////////
+			camData->open_count += 1;
+			myStatus = 0;
+			if(camData->open_count == 5){
+                complete(camData->done);
+                camData->open_count = 0;
+			}
+		}
+	}else{
+		printk(KERN_WARNING "Pas rentré dans le callback");
+	}
+}
 
 static struct usb_driver cameraUsb_driver = {
 	.name =		"cameraUsbDriver",
