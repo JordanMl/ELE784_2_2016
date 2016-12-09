@@ -35,6 +35,7 @@ static ssize_t ele784_read (struct file *filp, char __user *ubuf, size_t count,
                   loff_t *f_ops);
 long ele784_ioctl (struct file *filp, unsigned int cmd, unsigned long arg);
 static void ele784_cleanup(void);
+long ele784_grab(struct usb_interface *intf, struct usb_device *dev);
 static void complete_callback(struct urb *urb);
 
 static struct usb_device_id camera_id[] = {
@@ -88,12 +89,12 @@ static int ele784_open (struct inode *inode, struct file *filp){
 }
 
 /* RELEASE */
-/*
+
 static int ele784_release (struct inode *inode, struct file *filp) {
 
 	 printk(KERN_WARNING"ELE784 -> release \n\r");
 	 return 0;
-} */
+}
 
 /* READ */
 static ssize_t ele784_read (struct file *filp, char __user *ubuf, size_t count,
@@ -159,6 +160,7 @@ long ele784_ioctl (struct file *filp, unsigned int cmd, unsigned long arg){
 				 printk(KERN_WARNING"ELE784 -> IOCTL_STREAMOFF (0x40) \n\r");
 			    break;
 		  case IOCTL_GRAB :
+                 retval = ele784_grab(intf, dev);
 				 printk(KERN_WARNING"ELE784 -> IOCTL_GRAB (0x50) \n\r");
 			    break;
 		  case IOCTL_PANTILT : // Modifier la position de l'objectif de la caméra
@@ -187,7 +189,7 @@ long ele784_ioctl (struct file *filp, unsigned int cmd, unsigned long arg){
 				 }
 			    retval = (long)usb_control_msg(dev,usb_sndctrlpipe(dev, 0x00), 0x01, (USB_DIR_OUT | USB_TYPE_CLASS | USB_RECIP_INTERFACE),0x0100,0x0900,&direction,4,0);
 
-			    printk(KERN_WARNING"ELE784 -> IOCTL_PANTILT, Mouvement, arg = %d retval = %d  \n\r",arg,retval);
+			    printk(KERN_WARNING"ELE784 -> IOCTL_PANTILT, Mouvement, arg = %ld retval = %ld  \n\r",arg,retval);
 			    break;
 		  case IOCTL_PANTILT_RESEST : // Reset de la position de l'objectif
                 retval = (long)usb_control_msg(dev,usb_sndctrlpipe(dev, 0x00), 0x01, (USB_DIR_OUT | USB_TYPE_CLASS | USB_RECIP_INTERFACE),0x0200,0x0900,&reset,1,0);
@@ -239,10 +241,10 @@ static int ele784_probe(struct usb_interface *interface,const struct usb_device_
 	dev->udev = usb_get_dev (interface_to_usbdev(interface));   //interface_to_usbdev : recupere la struc usb_device du pilote usb
     dev->interface = interface;
 
-	iface_desc = interface->cur_altsetting; //Récupère les réglages courants
+	iface_desc = interface->altsetting;
 
     if(iface_desc->desc.bInterfaceClass == CC_VIDEO){
-        if(iface_desc->desc.bInterfaceSubClass == SC_VIDEOCONTROL){ //SC_VIDEOSTREAMING
+        if(iface_desc->desc.bInterfaceSubClass == SC_VIDEOCONTROL){
             endpoint = &iface_desc->endpoint[0].desc;
             printk(KERN_WARNING"ele784_probe (%s:%u)\n Récupération du endpoint, numero du endpoint = %d", __FUNCTION__, __LINE__,iface_desc->desc.bNumEndpoints);
             buffer_size = usb_endpoint_maxp(endpoint);
@@ -291,7 +293,7 @@ static void ele784_disconnect(struct usb_interface *interface){
 
     //Signifie au USB Core que le device retiré n'est plus associé à l'usb driver
 	usb_deregister_dev(interface, &ele784_class);
-	printk(KERN_WARNING"ele784_probe (%s:%u)\n Pas la bonne Class", __FUNCTION__, __LINE__);
+	printk(KERN_WARNING"ele784_disconnect (%s:%u)\n", __FUNCTION__, __LINE__);
 
 }
 
@@ -317,17 +319,17 @@ long ele784_grab(struct usb_interface *intf, struct usb_device *dev) {
   nbUrbs = 5;
 
   for (i = 0; i < nbUrbs; ++i) {
-    usb_free_urb(camData->myUrb[i]); // Pour être certain
+    usb_free_urb(camData->myUrb[i]);
     camData->myUrb[i] = usb_alloc_urb(nbPackets, GFP_KERNEL);
     if (camData->myUrb[i] == NULL) {
-      printk(KERN_WARNING "URB[%d] : NULL",i);
+      printk(KERN_WARNING "ele784_grab (%s:%u) | URB[%d] : NULL  \n",__FUNCTION__, __LINE__,i);
       return -ENOMEM;
     }
 
     camData->myUrb[i]->transfer_buffer = usb_alloc_coherent(dev, size, GFP_KERNEL, &camData->myUrb[i]->transfer_dma);
 
     if (camData->myUrb[i]->transfer_buffer == NULL) {
-      //printk(KERN_WARNING "");
+      printk(KERN_WARNING "ele784_grab (%s:%u) | URB[%d] free \n",__FUNCTION__, __LINE__,i);
       usb_free_urb(camData->myUrb[i]);
       return -ENOMEM;
     }
@@ -349,7 +351,7 @@ long ele784_grab(struct usb_interface *intf, struct usb_device *dev) {
 
   for(i = 0; i < nbUrbs; i++){
     if ((ret = usb_submit_urb(camData->myUrb[i], GFP_KERNEL)) < 0) {
-      //printk(KERN_WARNING "");
+      printk(KERN_WARNING "ele784_grab (%s:%u) | submit URB[%d]  \n",__FUNCTION__, __LINE__,i);
       return ret;
     }
   }
@@ -405,11 +407,13 @@ static void complete_callback(struct urb *urb){
 			myLengthUsed += nbytes;
 
 			if (len > maxlen) {
+                printk(KERN_WARNING "DONE\n");
 				myStatus = 1; // DONE
 			}
 
 			/* Mark the buffer as done if the EOF marker is set. */
 			if ((data[1] & (1 << 1)) && (myLengthUsed != 0)) {
+                printk(KERN_WARNING "DONE\n");
 				myStatus = 1; // DONE
 			}
 		}
@@ -418,11 +422,12 @@ static void complete_callback(struct urb *urb){
 			if ((ret = usb_submit_urb(urb, GFP_ATOMIC)) < 0) {
 				printk(KERN_WARNING "Erreur dans submit URB code %d\n",ret);
 			}
-			printk("RESUBMIT URB\n");
+			printk(KERN_WARNING "RESUBMIT URB\n");
 		}else{
 			///////////////////////////////////////////////////////////////////////
 			//  Synchronisation
 			///////////////////////////////////////////////////////////////////////
+			printk(KERN_WARNING "Synchronisation \n");
 			camData->open_count += 1;
 			myStatus = 0;
 			if(camData->open_count == 5){
