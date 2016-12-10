@@ -19,8 +19,9 @@
 #include <linux/sched.h>
 
 #include "cameraUsbDriver.h"
+#include "dht_data.h"
 
-#define USB_CHAR_CAMERA_0 "/dev/cameraEle784num2"
+#define USB_CHAR_CAMERA_0 "/dev/cameraEle784num0"
 
 
 void clrBuffer(void) {
@@ -154,7 +155,7 @@ void readFunction(int devFd,char blocking) {
 }
 
 
-long ioctlFunction(int fd, int cmd,unsigned long arg){
+long ioctlFunction(int fd, int cmd, unsigned long arg){
     long retval = 0;
     switch(cmd){
         case IOCTL_GET :   retval = ioctl(fd,IOCTL_GET,arg);
@@ -162,10 +163,30 @@ long ioctlFunction(int fd, int cmd,unsigned long arg){
         case IOCTL_SET :    retval = ioctl(fd,IOCTL_SET,arg);
                     break;
         case IOCTL_STREAMON :    retval = ioctl(fd,IOCTL_STREAMON,arg);
-                    break;
+                                 if(retval >= 0){
+                                    printf("IOCTL_STREAMON SUCCESS\n");
+                                 }
+                                 else{
+                                    printf("IOCTL_STREAMON FAIL %ld\n",retval);
+                                 }
+                                 break;
         case IOCTL_STREAMOFF :    retval = ioctl(fd,IOCTL_STREAMOFF,arg);
+                                  if(retval >= 0){
+                                    printf("IOCTL_STREAMOFF SUCCESS\n");
+                                 }
+                                 else{
+                                    printf("IOCTL_STREAMOFF FAIL %ld\n",retval);
+                                 }
+                                 break;
                     break;
         case IOCTL_GRAB :    retval = ioctl(fd,IOCTL_GRAB,arg);
+                             if(retval >= 0){
+                                    printf("IOCTL_GRAB SUCCESS\n");
+                                 }
+                                 else{
+                                    printf("IOCTL_GRAB FAIL %ld\n",retval);
+                                 }
+                                 break;
                     break;
         case IOCTL_PANTILT :    retval = ioctl(fd,IOCTL_PANTILT,arg);
                     break;
@@ -245,35 +266,94 @@ int main(void) {
 
 		unsigned int incorrectKeyCounter = 0; //While loop security
 
+		/* Variable pour la prise de photos */
+		FILE *foutput;
+        unsigned char * inBuffer;
+        unsigned char * finalBuf;
+        long mySize;
+
         while (userChoice!='5'){
 
             printf("----------------------------------\n");
             printf("---------Camera Application-------\n");
             printf("----------------------------------\n \n");
-            printf("MENU :\n ----- \n 1) Read \n 2) IOCTL Commands\n \n 5) Exit\n-> ");
+            printf("MENU :\n ----- \n 1) Take a picture \n 2) IOCTL Commands\n \n 5) Exit\n-> ");
             scanf("%c", &userChoice);
             clrBuffer();
 
             switch (userChoice)
             {
 
-                case '1':  //Read from Buffer
+                case '1':  //Take a picture
                     clrTerminal();
-                    printf("------------Read Camera-----------\n");
+                    printf("------------Take a Picture-----------\n");
                     printf("----------------------------------\n \n");
-                    printf("--------NO FUNCTION YET----------- \n-> ");
-                    scanf("%c", &userChoice);
-                    clrBuffer();
 
-                    switch (userChoice){
-                        case '1' :
+                    blocking = 1; //NonBlocking
+                    devFd = openDriverRead(blocking); //Open driver in Read Mode
 
-                            break;
+                    if(devFd>0){
 
-                        case '2' :
+                        inBuffer = malloc((42666)* sizeof(unsigned char));
+                        finalBuf = malloc((42666 * 2)* sizeof(unsigned char));
+                        if((inBuffer == NULL) || (finalBuf == NULL)){
+                            return -1;
+                        }
 
-                            break;
+                        //Etape #1
+                        foutput = fopen("/home/johann/Bureau/fichier.jpg", "wb");
+
+                        if(foutput != NULL){
+                            // Etape #2
+                            printf("-------IOCTL_STREAMON--------\n");
+                            ioctlFunction(devFd, IOCTL_STREAMON, 0);
+
+                            // Etape #3
+                            printf("-------IOCTL_GRAB--------\n");
+                            ioctlFunction(devFd, IOCTL_GRAB, 0 );
+
+                            // Etape #4
+                            printf("----------READ------------\n");
+                            status = read(devFd, inBuffer, 42666);
+                            if(status < 0){
+                                printf("Read Failed %d",status);
+                            }
+                            // Etape #5
+                            printf("-------IOCTL_STREAMOFF--------\n");
+                            ioctlFunction(devFd, IOCTL_STREAMOFF, 0);
+
+                            //Etape #6
+                            memcpy (finalBuf, inBuffer, HEADERFRAME1);
+                            memcpy (finalBuf + HEADERFRAME1, dht_data, DHT_SIZE);
+                            memcpy (finalBuf + HEADERFRAME1 + DHT_SIZE,
+                                    inBuffer + HEADERFRAME1,
+                                    (mySize  - HEADERFRAME1));
+
+                            //Etape #7
+                            fwrite (finalBuf, mySize + DHT_SIZE, 1, foutput);
+
+                            //Etape #8
+                            fclose(foutput);
+                            free(inBuffer);
+                            free(finalBuf);
+
+                            while(userChoice!='q'){
+                                printf("Photo enregistré dans ~/Bureau/fichier.jpg\n\n q pour quitter");
+                                scanf("%c", &userChoice);
+                                clrBuffer();
+                            }
+                        }
+                        else{
+                            while(userChoice!='q'){
+                                printf("Erreur Photo non enregistré\n\n q pour quitter");
+                                scanf("%c", &userChoice);
+                                clrBuffer();
+                            }
+                        }
+
+                        close(devFd);
                     }
+
                     break;
 
 
@@ -285,7 +365,7 @@ int main(void) {
                     printf("----------------------------------\n \n");
 
                     blocking = 1; //NonBlocking
-                    devFd = openDriverRead(blocking); //Open driver in Read/Write Mode
+                    devFd = openDriverRead(blocking); //Open driver in Read Mode
 
                     if(devFd>0){
                         while(userChoice!='q'){
@@ -363,7 +443,7 @@ int main(void) {
                             case '7' :
                                 printf("-------IOCTL_PANTILT_RESEST--------\n");
                                 printf("--------NO FUNCTION YET----------- \n-> ");
-                                //ioctlFunction(devFd, IOCTL_PANTILT_RESEST, ARG )
+                                ioctlFunction(devFd, IOCTL_PANTILT_RESEST, 0 );
 
                                 break;
 
