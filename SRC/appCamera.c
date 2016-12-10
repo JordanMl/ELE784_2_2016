@@ -21,7 +21,7 @@
 #include "cameraUsbDriver.h"
 #include "dht_data.h"
 
-#define USB_CHAR_CAMERA_0 "/dev/cameraEle784num0"
+#define USB_CHAR_CAMERA_0 "/dev/cameraEle784num1"
 
 
 void clrBuffer(void) {
@@ -297,30 +297,52 @@ int main(void) {
                         inBuffer = malloc((42666)* sizeof(unsigned char));
                         finalBuf = malloc((42666 * 2)* sizeof(unsigned char));
                         if((inBuffer == NULL) || (finalBuf == NULL)){
+                            printf("Erreur malloc inBuffer ou finalBuf");
                             return -1;
                         }
 
                         //Etape #1
-                        foutput = fopen("/home/johann/Bureau/fichier.jpg", "wb");
+                        foutput = fopen("/home/jm/Bureau/photoCamUsb.jpg", "wb");
 
                         if(foutput != NULL){
                             // Etape #2
                             printf("-------IOCTL_STREAMON--------\n");
-                            ioctlFunction(devFd, IOCTL_STREAMON, 0);
+                            status = ioctlFunction(devFd, IOCTL_STREAMON, 0);
+                            if (status>=0){
+                                printf("-IOCTL_STREAMON OK \n");
+                            }
+                            else{
+                                printf("-IOCTL_STREAMON ERROR \n");
+                            }
 
                             // Etape #3
                             printf("-------IOCTL_GRAB--------\n");
-                            ioctlFunction(devFd, IOCTL_GRAB, 0 );
+                            status = ioctlFunction(devFd, IOCTL_GRAB, 0 );
+                            if (status>=0){
+                                printf("-IOCTL_GRAB OK \n");
+                            }
+                            else{
+                                printf("-IOCTL_GRAB ERROR \n");
+                            }
 
                             // Etape #4
                             printf("----------READ------------\n");
                             status = read(devFd, inBuffer, 42666);
-                            if(status < 0){
-                                printf("Read Failed %d",status);
+                            if (status>=0){
+                                printf("-READ OK \n");
+                            }
+                            else{
+                                printf("-READ ERROR \n");
                             }
                             // Etape #5
                             printf("-------IOCTL_STREAMOFF--------\n");
-                            ioctlFunction(devFd, IOCTL_STREAMOFF, 0);
+                            status = ioctlFunction(devFd, IOCTL_STREAMOFF, 0);
+                            if (status>=0){
+                                printf("-IOCTL_STREAMOFF OK \n");
+                            }
+                            else{
+                                printf("-IOCTL_STREAMOFF ERROR \n");
+                            }
 
                             //Etape #6
                             memcpy (finalBuf, inBuffer, HEADERFRAME1);
@@ -338,7 +360,7 @@ int main(void) {
                             free(finalBuf);
 
                             while(userChoice!='q'){
-                                printf("Photo enregistré dans ~/Bureau/fichier.jpg\n\n q pour quitter");
+                                printf("Photo enregistré dans ~/Bureau/photoCamUsb.jpg\n\n q pour quitter");
                                 scanf("%c", &userChoice);
                                 clrBuffer();
                             }
