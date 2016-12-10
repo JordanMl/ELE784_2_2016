@@ -294,8 +294,10 @@ int main(void) {
 
                     if(devFd>0){
 
-                        inBuffer = malloc((42666)* sizeof(unsigned char));
-                        finalBuf = malloc((42666 * 2)* sizeof(unsigned char));
+                        //inBuffer = malloc((42666)* sizeof(unsigned char));
+                        //finalBuf = malloc((42666 * 2)* sizeof(unsigned char));
+                        inBuffer = (unsigned char*)malloc(42666);
+                        finalBuf = (unsigned char*)malloc(42666 * 2);
                         if((inBuffer == NULL) || (finalBuf == NULL)){
                             printf("Erreur malloc inBuffer ou finalBuf");
                             return -1;
@@ -350,12 +352,15 @@ int main(void) {
                             memcpy (finalBuf + HEADERFRAME1 + DHT_SIZE,
                                     inBuffer + HEADERFRAME1,
                                     (mySize  - HEADERFRAME1));
+                            printf("memcopy passe \n");
 
                             //Etape #7
-                            fwrite (finalBuf, mySize + DHT_SIZE, 1, foutput);
+                            status = fwrite (finalBuf, mySize + DHT_SIZE, 1, foutput);
+                            printf("fwrite status = %d \n",status);
 
                             //Etape #8
-                            fclose(foutput);
+                            status = fclose(foutput);
+                            printf("fclose status = %d \n",status);
                             free(inBuffer);
                             free(finalBuf);
 

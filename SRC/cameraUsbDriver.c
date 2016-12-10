@@ -128,8 +128,8 @@ static ssize_t ele784_read (struct file *filp, char __user *ubuf, size_t count,
         camData->myUrb[i]->transfer_buffer_length = 0;
         camData->myUrb[i]->transfer_flags = URB_FREE_BUFFER;
 
-        printk(KERN_WARNING "ELE784 -> read -> usb_free_urb (%s,%s,%u)\n",__FILE__,__FUNCTION__,__LINE__);
-        usb_free_urb(camData->myUrb[i]);
+        //printk(KERN_WARNING "ELE784 -> read -> usb_free_urb (%s,%s,%u)\n",__FILE__,__FUNCTION__,__LINE__);
+        //usb_free_urb(camData->myUrb[i]);
 
         camData->myUrb[i] = NULL;
     }
@@ -156,11 +156,12 @@ long ele784_ioctl (struct file *filp, unsigned int cmd, unsigned long arg){
     switch(cmd){
 
         case IOCTL_STREAMON : // Démarrer l'acquisition d'une image
-                retval = (long)usb_control_msg(dev,usb_sndctrlpipe(dev, 0x00), 0x0B, (USB_DIR_OUT | USB_TYPE_STANDARD | USB_RECIP_INTERFACE),0x0004,0x0001,NULL,0,0);
+                //retval = (long)usb_control_msg(dev,usb_sndctrlpipe(dev, 0x00), 0x0B, (USB_DIR_OUT | USB_TYPE_STANDARD | USB_RECIP_INTERFACE),0x0004,0x0001,NULL,0,0);
+                retval = (long)usb_control_msg(dev,usb_sndctrlpipe(dev,dev->ep0.desc.bEndpointAddress), 0x0B, (USB_DIR_OUT | USB_TYPE_STANDARD | USB_RECIP_INTERFACE),0x0004,0x0001,NULL,0,0);
 				 printk(KERN_WARNING"ELE784 -> IOCTL_STREAMON (0x30) \n\r");
              break;
         case IOCTL_STREAMOFF : // Arrêter l'acquisition d'une image
-                retval = (long)usb_control_msg(dev,usb_sndctrlpipe(dev, 0x00), 0x0B, (USB_DIR_OUT | USB_TYPE_STANDARD | USB_RECIP_INTERFACE),0x0000,0x0001,NULL,0,0);
+                retval = (long)usb_control_msg(dev,usb_sndctrlpipe(dev, dev->ep0.desc.bEndpointAddress), 0x0B, (USB_DIR_OUT | USB_TYPE_STANDARD | USB_RECIP_INTERFACE),0x0000,0x0001,NULL,0,0);
 				 printk(KERN_WARNING"ELE784 -> IOCTL_STREAMOFF (0x40) \n\r");
 			    break;
 		  case IOCTL_GRAB :
@@ -248,15 +249,15 @@ static int ele784_probe(struct usb_interface *interface,const struct usb_device_
 	iface_desc = interface->altsetting;
 
     if(iface_desc->desc.bInterfaceClass == CC_VIDEO){
-        if(iface_desc->desc.bInterfaceSubClass == SC_VIDEOCONTROL){
-        //if(iface_desc->desc.bInterfaceSubClass == SC_VIDEOSTREAMING){
-            endpoint = &iface_desc->endpoint[0].desc;
+        //if(iface_desc->desc.bInterfaceSubClass == SC_VIDEOCONTROL){
+        if(iface_desc->desc.bInterfaceSubClass == SC_VIDEOSTREAMING){
+            /*endpoint = &iface_desc->endpoint[0].desc;
             printk(KERN_WARNING"ele784_probe (%s:%u)\n Récupération du endpoint, numero du endpoint = %d", __FUNCTION__, __LINE__,iface_desc->desc.bNumEndpoints);
             buffer_size = usb_endpoint_maxp(endpoint);
             camData->control_size = buffer_size;
             camData->control_endpointAddr = endpoint->bEndpointAddress;
             camData->control_buffer = kmalloc(buffer_size, GFP_KERNEL);
-
+            */
             for(i = 0; i < 5; i++){
                 camData->myUrb[i] = NULL;
             }
@@ -269,18 +270,17 @@ static int ele784_probe(struct usb_interface *interface,const struct usb_device_
             usb_set_intfdata(interface, camData);
 
             //Enregistrement du device auprès de l'USB Core
-            printk(KERN_WARNING"ele784_probe (%s:%u)\n Device registered", __FUNCTION__, __LINE__);
             usb_register_dev(interface, &ele784_class);
-
             usb_set_interface(camData->udev, 1, 4);
+            printk(KERN_WARNING"ele784_probe (%s:%u)\n SubClass SC_VIDEOSTREAMING :  Device registered", __FUNCTION__, __LINE__);
         }
         else{
-            printk(KERN_WARNING"ele784_probe (%s:%u)\n Pas la bonne SubClass", __FUNCTION__, __LINE__);
+            //printk(KERN_WARNING"ele784_probe (%s:%u)\n Pas la bonne SubClass", __FUNCTION__, __LINE__);
         }
 
     }
     else{
-        printk(KERN_WARNING"ele784_probe (%s:%u)\n Pas la bonne Class", __FUNCTION__, __LINE__);
+        //printk(KERN_WARNING"ele784_probe (%s:%u)\n Pas la bonne Class", __FUNCTION__, __LINE__);
     }
 
     return 0;
@@ -316,7 +316,6 @@ long ele784_grab(struct usb_interface *intf, struct usb_device *dev) {
   struct usb_endpoint_descriptor *endpointDesc;
   struct usb_cameraData *camData = usb_get_intfdata(intf);
 
-  //endpointDesc = &intf->cur_altsetting->endpoint[0].desc; //il faut pas enlever le & ?
   endpointDesc = &intf->cur_altsetting->endpoint[0].desc;
 
   nbPackets = 40;  // The number of isochronous packets this urb should contain
@@ -328,14 +327,14 @@ long ele784_grab(struct usb_interface *intf, struct usb_device *dev) {
     usb_free_urb(camData->myUrb[i]);
     camData->myUrb[i] = usb_alloc_urb(nbPackets, GFP_KERNEL);
     if (camData->myUrb[i] == NULL) {
-      printk(KERN_WARNING "ele784_grab (%s:%u) | URB[%d] : NULL  \n",__FUNCTION__, __LINE__,i);
+      printk(KERN_WARNING "ele784_grab (%s:%u) |Error usb_alloc_urb, myUrb[%d] == NULL  \n",__FUNCTION__, __LINE__,i);
       return -ENOMEM;
     }
 
     camData->myUrb[i]->transfer_buffer = usb_alloc_coherent(dev, size, GFP_KERNEL, &camData->myUrb[i]->transfer_dma);
 
     if (camData->myUrb[i]->transfer_buffer == NULL) {
-      printk(KERN_WARNING "ele784_grab (%s:%u) | URB[%d] free \n",__FUNCTION__, __LINE__,i);
+      printk(KERN_WARNING "ele784_grab (%s:%u) |Error, transfer_buffer==NULL URB[%d] free \n",__FUNCTION__, __LINE__,i);
       usb_free_urb(camData->myUrb[i]);
       return -ENOMEM;
     }
@@ -357,7 +356,7 @@ long ele784_grab(struct usb_interface *intf, struct usb_device *dev) {
 
   for(i = 0; i < nbUrbs; i++){
     if ((ret = usb_submit_urb(camData->myUrb[i], GFP_KERNEL)) < 0) {
-      printk(KERN_WARNING "ele784_grab (%s:%u) | submit URB[%d]  \n",__FUNCTION__, __LINE__,i);
+      printk(KERN_WARNING "ele784_grab (%s:%u) |Error submit URB[%d]  \n",__FUNCTION__, __LINE__,i);
       return ret;
     }
   }
@@ -442,7 +441,8 @@ static void complete_callback(struct urb *urb){
 			}
 		}
 	}else{
-		printk(KERN_WARNING "Pas rentré dans le callback");
+		printk(KERN_WARNING "complete_callback (%s:%u) |Error urb status = %d  \n",__FUNCTION__, __LINE__,urb->status);
+		printk(KERN_WARNING "complete_callback : Pas rentré dans le callback\n");
 	}
 }
 
