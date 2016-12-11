@@ -21,7 +21,7 @@
 #include "cameraUsbDriver.h"
 #include "dht_data.h"
 
-#define USB_CHAR_CAMERA_0 "/dev/cameraEle784num1"
+#define USB_CHAR_CAMERA_0 "/dev/cameraEle784num0"
 
 
 void clrBuffer(void) {
@@ -304,7 +304,7 @@ int main(void) {
                         }
 
                         //Etape #1
-                        foutput = fopen("/home/jm/Bureau/photoCamUsb.jpg", "wb");
+                        foutput = fopen("/home/johann/Bureau/photoCamUsb.jpg", "wb");
 
                         if(foutput != NULL){
                             // Etape #2
@@ -329,8 +329,8 @@ int main(void) {
 
                             // Etape #4
                             printf("----------READ------------\n");
-                            status = read(devFd, inBuffer, 42666);
-                            if (status>=0){
+                            mySize = read(devFd, inBuffer, 42666);
+                            if (mySize>=0){
                                 printf("-READ OK \n");
                             }
                             else{

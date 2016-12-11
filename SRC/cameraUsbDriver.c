@@ -53,7 +53,7 @@ struct usb_cameraData {
     size_t			control_size;		/* the size of the receive buffer */
 	__u8			control_endpointAddr;	/* the address of the bulk in endpoint */
 	struct completion *done;
-    int open_count;
+    //int open_count;
 	struct urb *myUrb[5];
 };
 
@@ -106,9 +106,13 @@ static ssize_t ele784_read (struct file *filp, char __user *ubuf, size_t count,
     intf = filp->private_data;
     camData = usb_get_intfdata(intf);
 
-    printk(KERN_WARNING "ELE784 -> read -> attente de l'urb callback completion...\n");
-    wait_for_completion(camData->done);
-    printk(KERN_WARNING "ELE784 -> read -> Completion OK");
+    for (i= 0; i<5;i++){
+        printk(KERN_WARNING "ELE784 -> read -> attente de l'urb callback completion...\n");
+        wait_for_completion(camData->done);
+        printk(KERN_WARNING "ELE784 -> read -> Completion n %d OK",i);
+        init_completion(camData->done);
+    }
+
 
     count = copy_to_user(ubuf, myData, myLengthUsed);
 
@@ -117,19 +121,19 @@ static ssize_t ele784_read (struct file *filp, char __user *ubuf, size_t count,
     }
 
     for (i = 0; i < 5; i++){
-        printk(KERN_WARNING "ELE784 -> read -> kill urb (%s,%s,%u)\n",__FILE__,__FUNCTION__,__LINE__);
+        printk(KERN_WARNING "ELE784 -> read -> kill urb %d (%s,%s,%u)\n", i ,__FILE__,__FUNCTION__,__LINE__);
         usb_kill_urb(camData->myUrb[i]);
 
         //desalocation du buffer de transfert
-        printk(KERN_WARNING "ELE784 -> read -> usb_free_coherent (%s,%s,%u)\n",__FILE__,__FUNCTION__,__LINE__);
+        printk(KERN_WARNING "ELE784 -> read -> usb_free_coherent urb %d (%s,%s,%u)\n",i,__FILE__,__FUNCTION__,__LINE__);
         usb_free_coherent(camData->udev, camData->myUrb[i]->transfer_buffer_length, camData->myUrb[i]->transfer_buffer,
                             camData->myUrb[i]->transfer_dma);
 
         camData->myUrb[i]->transfer_buffer_length = 0;
         camData->myUrb[i]->transfer_flags = URB_FREE_BUFFER;
 
-        //printk(KERN_WARNING "ELE784 -> read -> usb_free_urb (%s,%s,%u)\n",__FILE__,__FUNCTION__,__LINE__);
-        //usb_free_urb(camData->myUrb[i]);
+        printk(KERN_WARNING "ELE784 -> read -> usb_free_urb urb %d (%s,%s,%u)\n",i,__FILE__,__FUNCTION__,__LINE__);
+        usb_free_urb(&camData->myUrb[i]);
 
         camData->myUrb[i] = NULL;
     }
@@ -218,7 +222,7 @@ struct file_operations ele784_fops =
 {
     .owner = THIS_MODULE,
     .open = ele784_open,
-    //.release = ele784_release,
+    .release = ele784_release,
     .read = ele784_read,
     .unlocked_ioctl = ele784_ioctl,
 };
@@ -262,7 +266,7 @@ static int ele784_probe(struct usb_interface *interface,const struct usb_device_
                 camData->myUrb[i] = NULL;
             }
 
-            camData->open_count = 0;
+            //camData->open_count = 0;
             camData->done = (struct completion *) kmalloc(sizeof(struct completion), GFP_KERNEL);
             init_completion(camData->done);
 
@@ -355,7 +359,7 @@ long ele784_grab(struct usb_interface *intf, struct usb_device *dev) {
   }
 
   for(i = 0; i < nbUrbs; i++){
-    if ((ret = usb_submit_urb(camData->myUrb[i], GFP_KERNEL)) < 0) {
+    if ((ret = usb_submit_urb(camData->myUrb[i], GFP_ATOMIC)) < 0) {
       printk(KERN_WARNING "ele784_grab (%s:%u) |Error submit URB[%d]  \n",__FUNCTION__, __LINE__,i);
       return ret;
     }
@@ -433,12 +437,8 @@ static void complete_callback(struct urb *urb){
 			//  Synchronisation
 			///////////////////////////////////////////////////////////////////////
 			printk(KERN_WARNING "Synchronisation \n");
-			camData->open_count += 1;
 			myStatus = 0;
-			if(camData->open_count == 5){
-                complete(camData->done);
-                camData->open_count = 0;
-			}
+            complete(camData->done);
 		}
 	}else{
 		printk(KERN_WARNING "complete_callback (%s:%u) |Error urb status = %d  \n",__FUNCTION__, __LINE__,urb->status);
